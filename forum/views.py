@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
@@ -10,7 +11,12 @@ from .forms import AddPostForm, AddTopicForm, LoginForm, ProfileEditForm, \
 from .models import Section, Topic, Post, Profile, Message
 
 import json
+import redis
 
+# connect to redis
+r = redis.StrictRedis(host=settings.REDIS_HOST,
+                      port=settings.REDIS_PORT,
+                      db=settings.REDIS_DB)
 
 # section views
 def section_list(request):
@@ -54,6 +60,8 @@ def topic_detail(request, section, topic):
     topic = get_object_or_404(Topic,
                               section=section,
                               slug=topic)
+    # increment the total views by 1
+    r.incr('topic:{}:views'.format(topic.id))
     post_list = Post.objects.filter(topic=topic)
     paginator = Paginator(post_list, 5)
     page = request.GET.get('page')
@@ -183,6 +191,36 @@ def add_post(request, section, topic):
                   'forum/add_post.html',
                   {'form': form})
 
+def update_likes(request):
+
+    if request.method == 'POST':
+        response_data = {}
+        post_id = request.POST.get('post_id')
+        post_action = request.POST.get('post_action')
+
+        post = Post.objects.get(id=post_id)
+        user = request.user
+        if post.owner != user:
+
+            if post_action == 'like':
+                post.likes.add(user)
+            else:
+                post.likes.remove(user)
+            post.save()
+
+            response_data['result'] = 'updated'
+            response_data['post_id'] = post.pk
+            response_data['users_like'] = list(post.likes.all().values_list('username', flat=True))
+            response_data['post_likes'] = post.likes.count()
+
+            return HttpResponse(json.dumps(response_data),
+                                content_type='application/json')
+        else:
+            return HttpResponse({'result': 'not updated'},
+                                content_type='application/json')
+    else:
+        return HttpResponse({'result': 'not updated'},
+                            content_type='application/json')
 # chat views
 def add_chat_message(request):
 

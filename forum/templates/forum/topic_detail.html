@@ -9,14 +9,35 @@
     </div>
     <div id="post_list">
         {% for post in posts %}
-            <div class="post_info">
+            {% with users_like=post.likes.all post_likes=post.likes.count %}
+            <div id="post_{{ post.id }}" class="post_info">
                 <div class="poster">
-                    {{ post.owner }}
+                    {{ post.owner }} {{ post.created }}
                 </div>
                 <div class="post_content">
                     {{ post.content }}
                 </div>
+                <div class="post_likes">
+                    {% if post_likes > 0 %}
+                        {% if post_likes == 1 %}
+                            {{ post_likes }} user likes this post
+                        {% else %}
+                            {{ post_likes }} users like this post
+                        {% endif %}
+                    {% endif %}
+                </div>
+                {% if post.owner != request.user %}
+                    <div class="like_post">
+                        <input data-id="{{ post.id }}"
+                               data-action="{% if request.user in users_like %}un{% endif %}like"
+                               type="button"
+                               class="like_post_button"
+                               value="{% if request.user in users_like %}Unlike{% else %}Like{% endif %}"
+                        />
+                    </div>
+                {% endif %}
             </div>
+            {% endwith %}
         {% endfor %}
     </div>
     <div id="add_post_button">
